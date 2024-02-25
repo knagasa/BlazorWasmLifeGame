@@ -1,0 +1,211 @@
+﻿@page "/lifegame_canvas"
+@inject IJSRuntime JSRuntime;
+
+<h3>ライフゲーム canvas版</h3>
+
+<canvas width="500" height="500" @ref="@_canvasRef">
+</canvas>
+
+<button class="btn btn-primary" @onclick="clickStart">
+	開始
+</button>
+
+<p>@message</p>
+
+@code {
+	private ElementReference _canvasRef;
+
+	private const int wx = 50;
+	private const int wy = 50;
+	private bool[,] cells { get; set; } = new bool[wx, wy];
+	private bool[,] sub = new bool[wx, wy];
+	private Task _task;
+	private bool _flag;
+	private string message = "";
+
+	protected override async void OnInitialized()
+	{
+		string[] s =
+			{
+			"......................................",
+			".........................#............",
+			".......................#.#............",
+			".............##......##............##.",
+			"............#...#....##............##.",
+			".##........#.....#...##...............",
+			".##........#...#.##....#.#............",
+			"...........#.....#.......#............",
+			"............#...#.....................",
+			".............##.......................",
+			"......................................",
+		};
+		for (int y = 0; y < s.Length; y++)
+		{
+			for (int x = 0; x < s[y].Length; x++)
+			{
+				if (s[y][x] == '#')
+				{
+					cells[x + 1, y + 1] = true;
+				}
+			}
+		}
+	}
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		bool[] tmpCells = new bool[wx * wy];
+		for (int y = 0; y < wy; y++)
+		{
+			for (int x = 0; x < wx; x++)
+			{
+				tmpCells[y * wx + x] = cells[x, y];
+			}
+		}
+		await JSRuntime.InvokeVoidAsync(
+			"jsFunctions.renderCells", _canvasRef, tmpCells, wx, wy);
+	}
+
+	private void onClick(MouseEventArgs e, int x, int y)
+	{
+		cells[x, y] = !cells[x, y];
+	}
+
+	private void clickStart()
+	{
+		_flag = true;
+		_task = new Task(async () =>
+		{
+
+			message = "";
+
+			var sw = new System.Diagnostics.Stopwatch();
+			sw.Restart();
+
+			for (int i = 0; i < 100; i++)
+			{
+				message = i.ToString();
+				step();
+
+				bool[] tmpCells = new bool[wx * wy];
+				for (int y = 0; y < wy; y++)
+				{
+					for (int x = 0; x < wx; x++)
+					{
+						tmpCells[y * wx + x] = cells[x, y];
+					}
+				}
+				await JSRuntime.InvokeVoidAsync(
+					"jsFunctions.renderCells", _canvasRef, tmpCells, wx, wy);
+
+				await Task.Delay(1);
+			}
+
+			sw.Stop();
+			TimeSpan ts = sw.Elapsed;
+
+			message = ts.ToString();
+			this.StateHasChanged();
+		});
+		_task.Start();
+	}
+
+	private void clickStop()
+	{
+		_flag = false;
+	}
+
+	private void step()
+	{
+		for (int y = 0; y < wy; y++)
+		{
+			for (int x = 0; x < wx; x++)
+			{
+				sub[x, y] = cells[x, y];
+				int be = countBeCell(x, y);
+				if (cells[x, y])
+				{
+					if (be == 2 || be == 3)
+					{
+						sub[x, y] = true;
+					}
+					if (be <= 1)
+					{
+						sub[x, y] = false;
+					}
+					if (be >= 4)
+					{
+						sub[x, y] = false;
+					}
+				}
+				else
+				{
+					if (be == 3)
+					{
+						sub[x, y] = true;
+					}
+				}
+			}
+		}
+
+		for (int y = 0; y < wy; y++)
+		{
+			for (int x = 0; x < wx; x++)
+			{
+				cells[x, y] = sub[x, y];
+			}
+		}
+		this.StateHasChanged();
+	}
+
+	private int countBeCell(int x, int y)
+	{
+		int n = 0;
+		if (isCell(x - 1, y - 1))
+		{
+			n++;
+		}
+		if (isCell(x, y - 1))
+		{
+			n++;
+		}
+		if (isCell(x + 1, y - 1))
+		{
+			n++;
+		}
+		if (isCell(x - 1, y))
+		{
+			n++;
+		}
+		if (isCell(x + 1, y))
+		{
+			n++;
+		}
+		if (isCell(x - 1, y + 1))
+		{
+			n++;
+		}
+		if (isCell(x, y + 1))
+		{
+			n++;
+		}
+		if (isCell(x + 1, y + 1))
+		{
+			n++;
+		}
+		return n;
+	}
+
+	private bool isCell(int x, int y)
+	{
+		if (x < 0 || x >= wx)
+		{
+			return false;
+		}
+		if (y < 0 || y >= wy)
+		{
+			return false;
+		}
+		return cells[x, y];
+	}
+
+}
